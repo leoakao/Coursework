@@ -1,0 +1,55 @@
+# Basic Data Analysis using Spark
+
+# Import Data Files into HDFS
+hdfs dfs -mkdir /assign4
+hdfs dfs -put /home/training/Desktop/craft-cans /assign4
+hdfs dfs -ls /assign4/craft-cans
+
+# Create RDD's
+val beers = sc.textFile("hdfs://localhost/assign4/craft-cans/beers.csv")
+val breweries = sc.textFile("hdfs://localhost/assign4/craft-cans/breweries.csv")
+
+# Validation
+beers.take(3)
+breweries.take(3)
+
+# Create hive context for the files
+import org.apache.spark.sql
+import org.apache.spark.sql.hive.HiveContext
+val hcontext = new org.apache.spark.sql.hive.HiveContext(sc)
+import hcontext._
+
+# Find the number of breweries in each state
+import org.apache.spark.sql.SQLContext
+val sqlCtx = new SQLContext(sc)
+import sqlCtx._
+
+val beersDF = sqlCtx.jsonFile("file:/home/training/Desktop/beers2.json")
+beersDF.show(3)
+val breweriesDF = sqlCtx.jsonFile("file:/home/training/Desktop/breweries2.json")
+breweriesDF.show(3)
+val breweriesRDD = breweriesDF.rdd
+val breweriesRDD2 = breweriesRDD.map(fields => (fields(3),1))
+val breweriesRDD3 = breweriesRDD2.reduceByKey((v1, v2) => v1+v2)
+for (line <-breweriesRDD3.collect()) println(line)
+
+# Find the cities with most breweries
+val cityRDD= breweriesDF.rdd
+val cityRDD2 = cityRDD.map(fields => (fields(1),1)).reduceByKey((v1, v2) => v1+v2)
+
+# Calculate the average alcohol % by volume in each state
+val joinDF = beersDF.join(breweriesDF, beersDF("brewery_id") === breweriesDF("FIELD1"))
+val joinDF2 = joinDF.select(joinDF("state") ,joinDF("abv"))
+
+val sumDF2 = joinDF2.groupBy(joinDF2("state")).agg(avg(joinDF2("abv")))
+for (line <- sumDF2.collect()) println(line)
+
+# Determine the beer styles with highest average alcohol by volume
+val joinDF3 = joinDF.select(joinDF("style") ,joinDF("abv"))
+val sumDF3 = joinDF3.groupBy(joinDF3("style")).agg(avg(joinDF3("abv")))
+val sumDF4 = sumDF3.agg(max("AVG(abv#1) "))
+
+# Determine the most brewed beer style
+val joinRDD3 = joinDF3. select(joinDF("style")).rdd
+val joinRDD4 = joinRDD3.map(word => (word, 1)).reduceByKey((v1,v2) => v1+v2)
+for (line <-joinRDD4.collect()) println(line
